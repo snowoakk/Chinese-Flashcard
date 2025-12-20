@@ -2,7 +2,7 @@
   "name": "Chinese Flashcards",
   "short_name": "漢字卡片",
   "description": "Practice writing Traditional Chinese characters with interactive flashcards",
-  "start_url": "./flashcards.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#667eea",
   "theme_color": "#e63946",

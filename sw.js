@@ -1,6 +1,6 @@
 const CACHE_NAME = 'chinese-flashcards-v1';
 const urlsToCache = [
-  './flashcards.html',
+  './index.html',
   './words.json',
   './manifest.json'
 ];
