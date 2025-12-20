@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#e63946">
+    <meta name="description" content="Practice writing Traditional Chinese characters with interactive flashcards">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="漢字卡片">
+    <link rel="manifest" href="manifest.json">
+    <title>Chinese Flashcards - Traditional Chinese Practice</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #e63946;
+            --secondary-color: #f1faee;
+            --accent-color: #457b9d;
+            --text-dark: #1d3557;
+            --text-light: #f1faee;
+            --drawing-color: #ff006e;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+            color: var(--text-light);
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        main {
+            padding: 30px 20px;
+        }
+
+        .flashcard-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            background: var(--secondary-color);
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        #drawingCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            touch-action: none;
+            z-index: 2;
+        }
+
+        .character-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: calc(100% - 100px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            z-index: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .character-overlay.hidden {
+            opacity: 0;
+        }
+
+        .chinese-character {
+            font-size: clamp(8rem, 35vh, 20rem);
+            font-weight: 700;
+            color: #000;
+            opacity: 0.25;
+            font-family: 'Microsoft YaHei', 'SimHei', 'STHeiti', sans-serif;
+            user-select: none;
+            line-height: 1;
+            padding: 20px;
+        }
+
+        .word-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            z-index: 3;
+            border-top: 3px solid var(--accent-color);
+        }
+
+        .pinyin {
+            font-size: 2rem;
+            color: var(--accent-color);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .meaning {
+            font-size: 1.5rem;
+            color: var(--text-dark);
+            font-weight: 400;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow);
+            flex: 1;
+            min-width: 150px;
+            justify-content: center;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .btn-toggle {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .btn-toggle:hover {
+            background: #3a6a8a;
+        }
+
+        .btn-erase {
+            background: #f77f00;
+            color: white;
+        }
+
+        .btn-erase:hover {
+            background: #d66d00;
+        }
+
+        .btn-next {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-next:hover {
+            background: #d32f3f;
+        }
+
+        .word-counter {
+            text-align: center;
+            padding: 15px;
+            background: var(--secondary-color);
+            border-radius: 10px;
+            font-size: 1rem;
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+
+        footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2rem;
+            }
+
+            .subtitle {
+                font-size: 0.9rem;
+            }
+
+            main {
+                padding: 20px 15px;
+            }
+
+            .chinese-character {
+                font-size: clamp(6rem, 30vh, 12rem);
+            }
+
+            .pinyin {
+                font-size: 1.2rem;
+            }
+
+            .meaning {
+                font-size: 1rem;
+            }
+
+            .controls {
+                gap: 10px;
+            }
+
+            .btn {
+                padding: 10px 16px;
+                font-size: 0.9rem;
+                min-width: 120px;
+            }
+
+            .btn span {
+                display: none;
+            }
+
+            .btn svg {
+                width: 20px;
+                height: 20px;
+            }
+
+            .word-info {
+                padding: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header {
+                padding: 20px 15px;
+            }
+
+            header h1 {
+                font-size: 1.5rem;
+            }
+
+            .flashcard-container {
+                aspect-ratio: 2 / 3;
+            }
+
+            .btn {
+                flex: 1;
+                min-width: 80px;
+                padding: 10px 12px;
+            }
+
+            .word-counter {
+                font-size: 0.9rem;
+                padding: 12px;
+            }
+        }
+
+        /* Landscape orientation for mobile */
+        @media (max-height: 600px) and (orientation: landscape) {
+            body {
+                padding: 10px;
+            }
+
+            header {
+                padding: 15px;
+            }
+
+            header h1 {
+                font-size: 1.5rem;
+                margin-bottom: 5px;
+            }
+
+            .subtitle {
+                font-size: 0.8rem;
+            }
+
+            main {
+                padding: 15px;
+            }
+
+            .flashcard-container {
+                aspect-ratio: 16 / 9;
+                margin-bottom: 15px;
+            }
+
+            .controls {
+                margin-bottom: 10px;
+            }
+
+            footer {
+                padding: 10px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>中文學習卡片</h1>
+            <p class="subtitle">Chinese Learning Flashcards</p>
+        </header>
+
+        <main>
+            <div class="flashcard-container">
+                <!-- Canvas for drawing practice -->
+                <canvas id="drawingCanvas"></canvas>
+                
+                <!-- Chinese character overlay (toggleable) -->
+                <div id="characterOverlay" class="character-overlay">
+                    <div class="chinese-character" id="chineseCharacter"></div>
+                </div>
+
+                <!-- Word information display -->
+                <div class="word-info">
+                    <div class="pinyin" id="pinyin"></div>
+                    <div class="meaning" id="meaning"></div>
+                </div>
+            </div>
+
+            <!-- Control buttons -->
+            <div class="controls">
+                <button id="toggleCharBtn" class="btn btn-toggle" title="Toggle Chinese Character">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <span>Toggle Character</span>
+                </button>
+                
+                <button id="eraserBtn" class="btn btn-erase" title="Clear Drawing">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"></path>
+                        <line x1="18" y1="9" x2="12" y2="15"></line>
+                        <line x1="12" y1="9" x2="18" y2="15"></line>
+                    </svg>
+                    <span>Clear Drawing</span>
+                </button>
+                
+                <button id="nextBtn" class="btn btn-next" title="Next Word">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                    <span>Next Word</span>
+                </button>
+            </div>
+
+            <!-- Word counter -->
+            <div class="word-counter">
+                <span id="wordCounter">Loading...</span>
+            </div>
+        </main>
+
+        <footer>
+            <p>Practice writing by drawing on the screen</p>
+        </footer>
+    </div>
+
+    <script>
+        // App State
+        let words = [];
+        let currentWordIndex = 0;
+        let isCharacterVisible = true;
+        let isDrawing = false;
+
+        // Canvas elements
+        let canvas;
+        let ctx;
+        let lastX = 0;
+        let lastY = 0;
+
+        // DOM elements
+        const characterOverlay = document.getElementById('characterOverlay');
+        const chineseCharacter = document.getElementById('chineseCharacter');
+        const pinyinElement = document.getElementById('pinyin');
+        const meaningElement = document.getElementById('meaning');
+        const wordCounterElement = document.getElementById('wordCounter');
+        const toggleCharBtn = document.getElementById('toggleCharBtn');
+        const eraserBtn = document.getElementById('eraserBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        // Initialize app
+        async function init() {
+            try {
+                // Load words from JSON file
+                const response = await fetch('words.json');
+                words = await response.json();
+                
+                // Setup canvas
+                setupCanvas();
+                
+                // Load first random word
+                loadRandomWord();
+                
+                // Setup event listeners
+                setupEventListeners();
+                
+                // Update word counter
+                updateWordCounter();
+            } catch (error) {
+                console.error('Error loading words:', error);
+                alert('Error loading flashcard data. Please check that words.json exists.');
+            }
+        }
+
+        // Setup canvas for drawing
+        function setupCanvas() {
+            canvas = document.getElementById('drawingCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Set canvas size to match container
+            resizeCanvas();
+            
+            // Setup drawing style
+            ctx.strokeStyle = '#ff006e'; // Pink color for drawing
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            // Handle window resize
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        // Resize canvas to match container
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const rect = container.getBoundingClientRect();
+            
+            // Resize canvas
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            // Restore drawing style after resize
+            ctx.strokeStyle = '#ff006e';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Toggle character visibility
+            toggleCharBtn.addEventListener('click', toggleCharacter);
+            
+            // Clear drawing
+            eraserBtn.addEventListener('click', clearDrawing);
+            
+            // Next word
+            nextBtn.addEventListener('click', loadRandomWord);
+            
+            // Mouse events for drawing
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+            
+            // Touch events for drawing (mobile)
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvas.addEventListener('touchend', stopDrawing);
+            canvas.addEventListener('touchcancel', stopDrawing);
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', handleKeyboard);
+        }
+
+        // Load a random word
+        function loadRandomWord() {
+            if (words.length === 0) return;
+            
+            // Get random index different from current
+            let newIndex;
+            do {
+                newIndex = Math.floor(Math.random() * words.length);
+            } while (newIndex === currentWordIndex && words.length > 1);
+            
+            currentWordIndex = newIndex;
+            
+            // Display word
+            displayWord(words[currentWordIndex]);
+            
+            // Clear previous drawing
+            clearDrawing();
+            
+            // Update counter
+            updateWordCounter();
+        }
+
+        // Display word information
+        function displayWord(word) {
+            chineseCharacter.textContent = word.character;
+            pinyinElement.textContent = word.pinyin;
+            meaningElement.textContent = word.meaning;
+        }
+
+        // Toggle character visibility
+        function toggleCharacter() {
+            isCharacterVisible = !isCharacterVisible;
+            
+            if (isCharacterVisible) {
+                characterOverlay.classList.remove('hidden');
+            } else {
+                characterOverlay.classList.add('hidden');
+            }
+        }
+
+        // Clear drawing canvas
+        function clearDrawing() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Update word counter
+        function updateWordCounter() {
+            wordCounterElement.textContent = `Word ${currentWordIndex + 1} of ${words.length}`;
+        }
+
+        // Drawing functions
+        function startDrawing(e) {
+            isDrawing = true;
+            const pos = getMousePos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            const pos = getMousePos(e);
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+            
+            lastX = pos.x;
+            lastY = pos.y;
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        // Touch event handlers
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }
+
+        // Keyboard shortcuts
+        function handleKeyboard(e) {
+            switch(e.key) {
+                case ' ':
+                case 'ArrowRight':
+                case 'Enter':
+                    e.preventDefault();
+                    loadRandomWord();
+                    break;
+                case 't':
+                case 'v':
+                    e.preventDefault();
+                    toggleCharacter();
+                    break;
+                case 'c':
+                case 'e':
+                case 'Escape':
+                    e.preventDefault();
+                    clearDrawing();
+                    break;
+            }
+        }
+
+        // Start app when DOM is loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
