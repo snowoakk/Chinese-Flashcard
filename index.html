@@ -71,6 +71,64 @@
             padding: 30px 20px;
         }
 
+        .filter-panel {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 140px;
+        }
+
+        .filter-label {
+            font-size: 0.9rem;
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+
+        .filter-input {
+            appearance: none;
+            background: #fff;
+            border: 1px solid #dfe6ee;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+            box-shadow: var(--shadow);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .filter-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+        }
+
+        .filter-btn-apply {
+            background: var(--accent-color);
+            color: #fff;
+        }
+
+        .filter-btn-clear {
+            background: #f1f3f5;
+            color: var(--text-dark);
+        }
+
         .flashcard-container {
             position: relative;
             width: 100%;
@@ -260,6 +318,10 @@
                 gap: 10px;
             }
 
+            .filter-panel {
+                gap: 10px;
+            }
+
             .btn {
                 padding: 10px 16px;
                 font-size: 0.9rem;
@@ -297,6 +359,10 @@
                 flex: 1;
                 min-width: 80px;
                 padding: 10px 12px;
+            }
+
+            .filter-group {
+                min-width: 120px;
             }
 
             .word-counter {
@@ -352,6 +418,20 @@
         </header>
 
         <main>
+            <div id="filterPanel" class="filter-panel" aria-label="Lesson and dialogue filters">
+                <div class="filter-group">
+                    <label class="filter-label" for="lessonSelect">Lesson</label>
+                    <input id="lessonSelect" class="filter-input" type="number" min="1" step="1" placeholder="e.g. 3">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label" for="dialogueSelect">Dialogue</label>
+                    <input id="dialogueSelect" class="filter-input" type="number" min="1" step="1" placeholder="e.g. 2">
+                </div>
+                <div class="filter-actions">
+                    <button id="applyFiltersBtn" class="filter-btn filter-btn-apply" type="button">Apply</button>
+                    <button id="clearFiltersBtn" class="filter-btn filter-btn-clear" type="button">Clear</button>
+                </div>
+            </div>
             <div class="flashcard-container">
                 <!-- Canvas for drawing practice -->
                 <canvas id="drawingCanvas"></canvas>
@@ -409,10 +489,12 @@
 
     <script>
         // App State
+        let allWords = [];
         let words = [];
         let currentWordIndex = 0;
         let isCharacterVisible = true;
         let isDrawing = false;
+        let hasLessonDialogue = false;
 
         // Canvas elements
         let canvas;
@@ -429,19 +511,25 @@
         const toggleCharBtn = document.getElementById('toggleCharBtn');
         const eraserBtn = document.getElementById('eraserBtn');
         const nextBtn = document.getElementById('nextBtn');
+        const filterPanel = document.getElementById('filterPanel');
+        const lessonSelect = document.getElementById('lessonSelect');
+        const dialogueSelect = document.getElementById('dialogueSelect');
+        const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
         // Initialize app
         async function init() {
             try {
-                // Load words from JSON file
-                const response = await fetch('words.json');
-                words = await response.json();
+                // Load words from book.json if it contains lesson/dialogue data, else fallback
+                allWords = await loadWords();
+                hasLessonDialogue = allWords.some((word) => word.lesson && word.dialogue);
                 
                 // Setup canvas
                 setupCanvas();
                 
-                // Load first random word
-                loadRandomWord();
+                // Setup filters and load first word
+                setupFilters();
+                applyFilters();
                 
                 // Setup event listeners
                 setupEventListeners();
@@ -452,6 +540,71 @@
                 console.error('Error loading words:', error);
                 alert('Error loading flashcard data. Please check that words.json exists.');
             }
+        }
+
+        async function loadWords() {
+            let bookData = null;
+
+            try {
+                const bookResponse = await fetch('book.json');
+                if (bookResponse.ok) {
+                    const parsed = await bookResponse.json();
+                    if (Array.isArray(parsed)) {
+                        bookData = parsed;
+                    }
+                }
+            } catch (error) {
+                console.warn('Unable to load book.json, falling back to words.json.', error);
+            }
+
+            if (Array.isArray(bookData)) {
+                const withLessonDialogue = bookData.filter((word) => {
+                    return word.lesson && word.dialogue && isCjkText(word.character || '');
+                });
+                if (withLessonDialogue.length > 0) {
+                    return withLessonDialogue;
+                }
+            }
+
+            const response = await fetch('words.json');
+            const fallbackWords = await response.json();
+            return fallbackWords.filter((word) => isCjkText(word.character || ''));
+        }
+
+        function isCjkText(value) {
+            return /[\u4e00-\u9fff]/.test(value);
+        }
+
+        function setupFilters() {
+            applyFiltersBtn.addEventListener('click', applyFilters);
+            clearFiltersBtn.addEventListener('click', () => {
+                lessonSelect.value = '';
+                dialogueSelect.value = '';
+                applyFilters();
+            });
+        }
+
+        function applyFilters() {
+            if (!hasLessonDialogue) {
+                words = allWords;
+                currentWordIndex = 0;
+                loadRandomWord();
+                return;
+            }
+
+            const selectedLesson = lessonSelect.value.trim();
+            const selectedDialogue = dialogueSelect.value.trim();
+
+            words = allWords.filter((word) => {
+                const lessonMatch = !selectedLesson || String(word.lesson) === selectedLesson;
+                const dialogueMatch = !selectedDialogue || String(word.dialogue) === selectedDialogue;
+                return lessonMatch && dialogueMatch;
+            });
+
+            words = words.filter((word) => hasChineseCharacter(word));
+
+            currentWordIndex = 0;
+            loadRandomWord();
         }
 
         // Setup canvas for drawing
@@ -539,9 +692,29 @@
 
         // Display word information
         function displayWord(word) {
-            chineseCharacter.textContent = word.character;
+            chineseCharacter.textContent = pickChineseCharacter(word);
             pinyinElement.textContent = word.pinyin;
             meaningElement.textContent = word.meaning;
+        }
+
+        function pickChineseCharacter(word) {
+            const candidate = (word.character || '').trim();
+            if (isCjkText(candidate)) {
+                return candidate;
+            }
+
+            const fallback = (word.traditional || word.simplified || '').trim();
+            if (isCjkText(fallback)) {
+                return fallback;
+            }
+
+            return '';
+        }
+
+        function hasChineseCharacter(word) {
+            const candidate = (word.character || '').trim();
+            const fallback = (word.traditional || word.simplified || '').trim();
+            return isCjkText(candidate) || isCjkText(fallback);
         }
 
         // Toggle character visibility
@@ -562,6 +735,11 @@
 
         // Update word counter
         function updateWordCounter() {
+            if (words.length === 0) {
+                wordCounterElement.textContent = 'No words available for this selection';
+                return;
+            }
+
             wordCounterElement.textContent = `Word ${currentWordIndex + 1} of ${words.length}`;
         }
 
