@@ -538,37 +538,22 @@
                 updateWordCounter();
             } catch (error) {
                 console.error('Error loading words:', error);
-                alert('Error loading flashcard data. Please check that words.json exists.');
+                alert('Error loading flashcard data. Please check that book.json exists and is valid JSON.');
             }
         }
 
         async function loadWords() {
-            let bookData = null;
-
-            try {
-                const bookResponse = await fetch('book.json');
-                if (bookResponse.ok) {
-                    const parsed = await bookResponse.json();
-                    if (Array.isArray(parsed)) {
-                        bookData = parsed;
-                    }
-                }
-            } catch (error) {
-                console.warn('Unable to load book.json, falling back to words.json.', error);
+            const bookResponse = await fetch('book.json');
+            if (!bookResponse.ok) {
+                throw new Error('Unable to load book.json');
             }
 
-            if (Array.isArray(bookData)) {
-                const withLessonDialogue = bookData.filter((word) => {
-                    return word.lesson && word.dialogue && isCjkText(word.character || '');
-                });
-                if (withLessonDialogue.length > 0) {
-                    return withLessonDialogue;
-                }
+            const parsed = await bookResponse.json();
+            if (!Array.isArray(parsed)) {
+                throw new Error('book.json must be a JSON array');
             }
 
-            const response = await fetch('words.json');
-            const fallbackWords = await response.json();
-            return fallbackWords.filter((word) => isCjkText(word.character || ''));
+            return parsed.filter((word) => hasChineseCharacter(word));
         }
 
         function isCjkText(value) {
@@ -582,12 +567,29 @@
                 dialogueSelect.value = '';
                 applyFilters();
             });
+
+            lessonSelect.addEventListener('keydown', handleFilterKey);
+            dialogueSelect.addEventListener('keydown', handleFilterKey);
+            lessonSelect.addEventListener('change', applyFilters);
+            dialogueSelect.addEventListener('change', applyFilters);
+        }
+
+        function handleFilterKey(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                applyFilters();
+            }
         }
 
         function applyFilters() {
             if (!hasLessonDialogue) {
                 words = allWords;
                 currentWordIndex = 0;
+                if (words.length === 0) {
+                    clearWordDisplay();
+                    updateWordCounter();
+                    return;
+                }
                 loadRandomWord();
                 return;
             }
@@ -595,15 +597,26 @@
             const selectedLesson = lessonSelect.value.trim();
             const selectedDialogue = dialogueSelect.value.trim();
 
+            const normalizedLesson = selectedLesson ? normalizeNumeric(selectedLesson) : '';
+            const normalizedDialogue = selectedDialogue ? normalizeNumeric(selectedDialogue) : '';
+
             words = allWords.filter((word) => {
-                const lessonMatch = !selectedLesson || String(word.lesson) === selectedLesson;
-                const dialogueMatch = !selectedDialogue || String(word.dialogue) === selectedDialogue;
+                const lessonValue = normalizeNumeric(word.lesson);
+                const dialogueValue = normalizeNumeric(word.dialogue);
+                const lessonMatch = !normalizedLesson || lessonValue === normalizedLesson;
+                const dialogueMatch = !normalizedDialogue || dialogueValue === normalizedDialogue;
                 return lessonMatch && dialogueMatch;
             });
 
             words = words.filter((word) => hasChineseCharacter(word));
 
             currentWordIndex = 0;
+            if (words.length === 0) {
+                clearWordDisplay();
+                updateWordCounter();
+                return;
+            }
+
             loadRandomWord();
         }
 
@@ -717,6 +730,20 @@
             return isCjkText(candidate) || isCjkText(fallback);
         }
 
+        function normalizeNumeric(value) {
+            const trimmed = String(value ?? '').trim();
+            if (!trimmed) {
+                return '';
+            }
+
+            const numberValue = Number(trimmed);
+            if (!Number.isNaN(numberValue)) {
+                return String(numberValue);
+            }
+
+            return trimmed;
+        }
+
         // Toggle character visibility
         function toggleCharacter() {
             isCharacterVisible = !isCharacterVisible;
@@ -731,6 +758,13 @@
         // Clear drawing canvas
         function clearDrawing() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function clearWordDisplay() {
+            chineseCharacter.textContent = '';
+            pinyinElement.textContent = '';
+            meaningElement.textContent = '';
+            clearDrawing();
         }
 
         // Update word counter
